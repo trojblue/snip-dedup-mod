@@ -36,6 +36,9 @@ def snip_download(outfolder="data/downloaded", start=0, end=2313, dl_dedup_set=T
 
     is_dup_all = np.load(dedup_set_path).ravel()
     abs_ind = 0
+
+    total_parquet_len = 0
+    total_dupe_len = 0
     for n in range(start, end):
         print(f"downloading metadata file {n}/{end}")
         url = f"https://huggingface.co/datasets/laion/laion2b-en-vit-h-14-embeddings/resolve/main/metadata/metadata_{n:04d}.parquet"
@@ -45,19 +48,37 @@ def snip_download(outfolder="data/downloaded", start=0, end=2313, dl_dedup_set=T
 
         # perform the deduplication
         md = pd.read_parquet(parquet_path)
-        non_dup_chunk = is_dup_all[abs_ind : abs_ind + len(md.index)]
+        dup_chunk = is_dup_all[abs_ind: abs_ind + len(md.index)]
 
-        # take only non-dupped (uniques)
-        non_dup_chunk = np.logical_not(non_dup_chunk)
+        # 读取的parquet文件的长度
+        parquet_len = len(md.index)
 
-        # make sure there is at least one unique
-        non_dup_chunk[0] = True
-        md = md[non_dup_chunk]
+        # 读取的parquet文件的长度对应的is_dup_all
+        curr_dup_chunk = is_dup_all[abs_ind: abs_ind + parquet_len]
+
+        # take only duped
+        md = md[dup_chunk]
+
+        # todo: DEBUG
+        curr_dup_total = np.sum(curr_dup_chunk)
+        md_len = len(md.index)
+        total_parquet_len += parquet_len
+        total_dupe_len += md_len
 
         # overwrite metadata
         md.to_parquet(parquet_path)
-        abs_ind += len(md.index)
+        abs_ind += parquet_len
+
+    print(f"total_parquet_len: {total_parquet_len}")
+    print(f"total_dupe_len: {total_dupe_len}")
+    print("DONE")
+
+
+def debug():
+    """Debug the snip_dedup package."""
+    snip_download(outfolder="data/downloaded", start=0, end=20, dl_dedup_set=False)
 
 
 if __name__ == "__main__":
     fire.Fire(snip_download)
+    # debug()
